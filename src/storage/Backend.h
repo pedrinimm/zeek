@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <memory>
+
 #include "zeek/OpaqueVal.h"
 #include "zeek/Tag.h"
 #include "zeek/Val.h"
@@ -11,6 +13,13 @@ namespace zeek::detail::trigger {
 class Trigger;
 using TriggerPtr = IntrusivePtr<Trigger>;
 } // namespace zeek::detail::trigger
+
+namespace zeek::telemetry {
+class Counter;
+using CounterPtr = std::shared_ptr<Counter>;
+class Gauge;
+using GaugePtr = std::shared_ptr<Gauge>;
+} // namespace zeek::telemetry
 
 namespace zeek::storage {
 
@@ -262,6 +271,9 @@ protected:
     zeek::Tag tag;
     std::string tag_str;
     std::unique_ptr<Serializer> serializer;
+
+    telemetry::CounterPtr bytes_stored_metric;
+    telemetry::CounterPtr bytes_retrieved_metric;
 
 private:
     /**
