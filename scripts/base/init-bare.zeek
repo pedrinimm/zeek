@@ -203,10 +203,10 @@ type transport_proto: enum {
 	icmp	##< ICMP.
 };
 
-## A record type holding context of a conn_id instance.
+## A record type containing the context of a conn_id instance.
 ##
 ## This context is used to discriminate between :zeek:see:`conn_id` instances
-## with identical five tuples, but that are not related due to, e.g. being observed
+## with identical five tuples, but not otherwise related due to, e.g. being observed
 ## on different VLANs, or within independent tunnel connections like VXLAN or Geneve.
 ##
 ## This record type is meant to be extended by custom ConnKey implementations.
