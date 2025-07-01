@@ -230,16 +230,9 @@ const RecordValPtr& Connection::GetVal() {
         id_val->Assign(2, make_intrusive<AddrVal>(resp_addr));
         id_val->Assign(3, val_mgr->Port(ntohs(resp_port), prot_type));
         id_val->Assign(4, KeyProto());
-
-        // Idea: If the conn_id_ctx type doesn't have any fields, we
-        //       could just use a singleton instance for it.
-        //       For now, assume this isn't super perf critical.
-        //       If ever something is done here, the above
-        //       make_intrusive<RecordVal>(...) should probably have
-        //       init_fields=false.
         auto* ctx = id_val->GetFieldAs<zeek::RecordVal>(5);
 
-        // Allow customized ConnKeys to augment the ctx or conn_id.
+        // Allow customized ConnKeys to augment conn_id and ctx.
         key->PopulateConnIdVal(*id_val, *ctx);
 
         auto orig_endp = make_intrusive<RecordVal>(id::endpoint);

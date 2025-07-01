@@ -29,22 +29,20 @@ public:
     void Init(const Packet& pkt) { DoInit(pkt); }
 
     /**
-     * When Zeek renders a connection into a script-layer record, it calls this
-     * method to populate custom ctx fields unique to this ConnKey, such as
-     * VLAN fields. This only needs to populate fields in addition to Zeek's
-     * five-tuple (i.e., complete the record, not populate all of it).
+     * Populates the conn_id and conn_id_ctx records.
      *
-     * The common pattern is to fill out the ctx record as that allows to use it
-     * as an additional piece of information in script-layer tables or records to
-     * discriminate between addresses in different contexts.
+     * When Zeek renders a connection key into a script-layer record, it calls this
+     * method to populate the conn_id's and conn_id_ctx's fields that are unique to
+     * this ConnKey.
      *
-     * Currently, conn_id and ctx always have the script-layer types conn_id and
-     * conn_id_ctx, but could be of different types in the future for non-IP connections.
+     * Currently, \a conn_id and \a ctx will always have the script-layer types conn_id
+     * and conn_id_ctx. They could be of different types in the future for non-IP
+     * connections.
      *
      * The default implementation does nothing.
      *
      * @param conn_id The conn_id record to populate.
-     * @param ctx The ctx record to populate.
+     * @param ctx The conn_id's ctx record to populate.
      */
     void PopulateConnIdVal(RecordVal& conn_id, RecordVal& ctx) { DoPopulateConnIdVal(conn_id, ctx); };
 
@@ -80,11 +78,18 @@ protected:
     /**
      * Hook method for ConnKey::PopulateConnIdVal.
      *
-     * Plugins should override this method to set connection key specific fields
-     * on the conn_id_ctx and if there's a use, also on conn_id.
+     * When Zeek renders a connection key into a script-layer record, it calls this
+     * method to populate the conn_id's and conn_id_ctx's fields that are unique to
+     * this ConnKey.
      *
-     * @param conn_id The conn_id script-layer record to populate.
-     * @param ctx The conn_id$ctx script-layer record to populate.
+     * Currently, \a conn_id and \a ctx will always have the script-layer types conn_id
+     * and conn_id_ctx. They could be of different types in the future for non-IP
+     * connections.
+     *
+     * The default implementation does nothing.
+     *
+     * @param conn_id The conn_id record to populate.
+     * @param ctx The conn_id's ctx record to populate.
      */
     virtual void DoPopulateConnIdVal(RecordVal& conn_id, RecordVal& ctx) {}
 
