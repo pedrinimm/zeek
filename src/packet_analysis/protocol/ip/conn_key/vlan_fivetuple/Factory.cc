@@ -97,13 +97,8 @@ zeek::expected<zeek::ConnKeyPtr, std::string> Factory::DoConnKeyFromVal(const ze
         return ck;
 
     auto* k = static_cast<IPVlanConnKey*>(ck.value().get());
-    auto rt = v.GetType()->AsRecordType();
     auto vl = v.AsRecordVal();
     auto ctx = vl->GetFieldAs<zeek::RecordVal>(5);
-
-    // Should be done in superclass!
-    if ( rt != id::conn_id )
-        return zeek::unexpected<std::string>{util::fmt("unexpected conn_id type %s", obj_desc_short(rt).c_str())};
 
     auto [vlan_offset, inner_vlan_offset] = k->GetConnCtxFieldOffsets();
 
