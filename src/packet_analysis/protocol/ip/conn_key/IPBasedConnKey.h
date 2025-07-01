@@ -78,6 +78,28 @@ public:
     }
 
     /**
+     * Flips the role of source and destination fields in the packed tuple.
+     */
+    void FlipRoles() { flipped = ! flipped; }
+
+    /**
+     * Flips the role of originator and responder.
+     *
+     * This overload will also flip fields of the conn_id and ctx record
+     * values. The DoFlipRoles hook can be overridden to customize this process,
+     * but that's usually not needed. The default implementation will flip
+     * the orig_h/resp_h and orig_p/resp_p pairs.
+     *
+     * @param conn_id The conn_id record to populate.
+     * @param ctx The conn_id's ctx record to populate.
+     */
+    void FlipRoles(RecordVal& conn_id, RecordVal& ctx) {
+        FlipRoles();
+
+        DoFlipRoles(conn_id, ctx);
+    }
+
+    /**
      * Return a modifiable reference to the embedded PackedConnTuple.
      *
      * This is virtual to give subclasses control over where
@@ -98,6 +120,24 @@ public:
     virtual const detail::PackedConnTuple& PackedTuple() const = 0;
 
 protected:
+    /**
+     * @copydoc
+     */
+    void DoPopulateConnIdVal(RecordVal& conn_id, RecordVal& ctx) override;
+
+    /**
+     * Hook for FlipRoles.
+     *
+     * The default implementation will flip the orig_h/resp_h and orig_p/resp_p pairs.
+     *
+     * @param conn_id The conn_id record to populate.
+     * @param ctx The conn_id's ctx record to populate.
+     */
+    virtual void DoFlipRoles(RecordVal& conn_id, RecordVal& ctx);
+
+    /**
+     * Flag for tracking if src and dst addresses provided to InitTuple() were flipped.
+     */
     bool flipped = false;
 };
 
