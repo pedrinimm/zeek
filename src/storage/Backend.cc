@@ -205,10 +205,14 @@ void Backend::CompleteCallback(ResultCallback* cb, const OperationResult& data) 
     }
 }
 
-void Backend::EnqueueBackendOpened() { event_mgr.Enqueue(Storage::backend_opened, tag.AsVal(), backend_options); }
+void Backend::EnqueueBackendOpened() {
+    event_mgr.Enqueue(Storage::backend_opened, tag.AsVal(), backend_options);
+    open_backends_metric->Inc();
+}
 
 void Backend::EnqueueBackendLost(std::string_view reason) {
     event_mgr.Enqueue(Storage::backend_lost, tag.AsVal(), backend_options, make_intrusive<StringVal>(reason));
+    open_backends_metric->Dec();
 }
 
 void Backend::InitMetrics() {
@@ -242,6 +246,9 @@ void Backend::InitMetrics() {
         telemetry_mgr->CounterInstance("zeek", "storage_data_retrieved",
                                        {{"backend_type", Tag()}, {"backend_config", metrics_config}},
                                        "Storage Data Retrieved", "bytes");
+
+    open_backends_metric =
+        telemetry_mgr->GaugeInstance("zeek", "storage_open_backends", {}, "Open storage backends", "");
 }
 
 zeek::OpaqueTypePtr detail::backend_opaque;
