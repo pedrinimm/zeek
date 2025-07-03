@@ -18,4 +18,7 @@ export {
 	## value when exporting data to Prometheus. In a cluster setup, this
 	## defaults to the name of the node in the cluster configuration.
 	const metrics_endpoint_name = "" &redef;
+
+	## Path to a Unix socket for exposing Prometheus metrics. If set, takes precedence over metrics_address/metrics_port.
+	const metrics_unix_socket = "" &redef;
 }
