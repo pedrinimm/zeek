@@ -22,8 +22,12 @@ module Telemetry;
 @if ( Cluster::is_enabled() )
 redef Telemetry::metrics_endpoint_name = Cluster::node;
 
-@if ( Cluster::local_node_metrics_port() != 0/unknown )
-redef Telemetry::metrics_port = Cluster::local_node_metrics_port();
+@if ( Cluster::local_node_metrics_unix_socket() != "" )
+  redef Telemetry::metrics_unix_socket = Cluster::local_node_metrics_unix_socket();
+@else
+  @if ( Cluster::local_node_metrics_port() != 0/unknown )
+    redef Telemetry::metrics_port = Cluster::local_node_metrics_port();
+  @endif
 @endif
 @endif
 

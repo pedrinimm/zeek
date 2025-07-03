@@ -200,6 +200,8 @@ export {
 		## configuration will override the setting for Telemetry::metrics_port for
 		## the node.
 		metrics_port: port        &optional;
+		## The Unix socket path used to expose metrics to Prometheus. If set, takes precedence over metrics_port.
+		metrics_unix_socket: string &optional;
 	};
 
 	## Record to represent a cluster node including its name.
@@ -229,6 +231,14 @@ export {
 	##
 	## Returns: The metrics port used by the calling node.
 	global local_node_metrics_port: function(): port;
+
+	## This function can be called at any time to determine the configured
+	## metrics Unix socket for Prometheus being used by current Zeek instance. If
+	## :zeek:id:`Cluster::is_enabled` returns false or the node isn't found,
+	## an empty string is returned.
+	##
+	## Returns: The metrics Unix socket used by the calling node.
+	global local_node_metrics_unix_socket: function(): string;
 
 	## The cluster layout definition.  This should be placed into a filter
 	## named cluster-layout.zeek somewhere in the ZEEKPATH.  It will be
@@ -362,6 +372,20 @@ function local_node_metrics_port(): port
 		return 0/unknown;
 
 	return nodes[node]$metrics_port;
+	}
+
+function local_node_metrics_unix_socket(): string
+	{
+	if ( ! is_enabled() )
+		return "";
+
+	if ( node !in nodes )
+		return "";
+
+	if ( ! nodes[node]?$metrics_unix_socket )
+		return "";
+
+	return nodes[node]$metrics_unix_socket;
 	}
 
 function node_topic(name: string): string
