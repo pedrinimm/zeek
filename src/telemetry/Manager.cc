@@ -46,7 +46,10 @@ Manager::Manager() : IOSource(true) { prometheus_registry = std::make_shared<pro
 Manager::~Manager() {}
 
 void Manager::InitPostScript() {
-    // Metrics port setting is used to calculate a URL for prometheus scraping
+    // Check for Unix socket option first
+    auto metrics_unix_socket_val = id::find_val("Telemetry::metrics_unix_socket")->AsStringVal();
+    std::string metrics_unix_socket = metrics_unix_socket_val ? metrics_unix_socket_val->ToStdString() : "";
+
     std::string prometheus_url;
     auto metrics_port = id::find_val("Telemetry::metrics_port")->AsPortVal();
     auto metrics_address = id::find_val("Telemetry::metrics_address")->AsStringVal()->ToStdString();
@@ -55,60 +58,61 @@ void Manager::InitPostScript() {
     if ( metrics_port->Port() != 0 )
         prometheus_url = util::fmt("%s:%u", metrics_address.data(), metrics_port->Port());
 
-    if ( ! prometheus_url.empty() ) {
-        CivetCallbacks* callbacks = nullptr;
-        auto local_node_name = id::find_val("Cluster::node")->AsStringVal();
-        if ( local_node_name->Len() > 0 ) {
-            auto cluster_nodes = id::find_val("Cluster::nodes")->AsTableVal();
-            auto local_node = cluster_nodes->Find(IntrusivePtr<StringVal>{NewRef{}, local_node_name});
-            auto local_node_type = local_node->AsRecordVal()->GetField<EnumVal>("node_type")->Get();
+    CivetCallbacks* callbacks = nullptr;
+    auto local_node_name = id::find_val("Cluster::node")->AsStringVal();
+    if ( local_node_name && local_node_name->Len() > 0 ) {
+        auto cluster_nodes = id::find_val("Cluster::nodes")->AsTableVal();
+        auto local_node = cluster_nodes->Find(IntrusivePtr<StringVal>{NewRef{}, local_node_name});
+        auto local_node_type = local_node->AsRecordVal()->GetField<EnumVal>("node_type")->Get();
 
-            static auto node_type_type = id::find_type("Cluster::NodeType")->AsEnumType();
-            static auto manager_type = node_type_type->Lookup("Cluster", "MANAGER");
+        static auto node_type_type = id::find_type("Cluster::NodeType")->AsEnumType();
+        static auto manager_type = node_type_type->Lookup("Cluster", "MANAGER");
 
-            if ( local_node_type == manager_type ) {
-                BuildClusterJson();
+        if ( local_node_type == manager_type ) {
+            BuildClusterJson();
 
-                callbacks = new CivetCallbacks();
-                callbacks->begin_request = [](struct mg_connection* conn) -> int {
-                    // Handle the services.json request ourselves by building up a response based on
-                    // the cluster configuration.
-                    auto req_info = mg_get_request_info(conn);
-                    if ( strcmp(req_info->request_uri, "/services.json") == 0 ) {
-                        // send a request to a topic for data from workers
-                        auto json = telemetry_mgr->GetClusterJson();
-                        mg_send_http_ok(conn, "application/json", static_cast<long long>(json.size()));
-                        mg_write(conn, json.data(), json.size());
-                        return 1;
-                    }
+            callbacks = new CivetCallbacks();
+            callbacks->begin_request = [](struct mg_connection* conn) -> int {
+                // Handle the services.json request ourselves by building up a response based on
+                // the cluster configuration.
+                auto req_info = mg_get_request_info(conn);
+                if ( strcmp(req_info->request_uri, "/services.json") == 0 ) {
+                    // send a request to a topic for data from workers
+                    auto json = telemetry_mgr->GetClusterJson();
+                    mg_send_http_ok(conn, "application/json", static_cast<long long>(json.size()));
+                    mg_write(conn, json.data(), json.size());
+                    return 1;
+                }
+                return 0;
+            };
+        }
+    }
 
-                    return 0;
-                };
+    if ( !getenv("ZEEKCTL_CHECK_CONFIG") ) {
+        try {
+            if ( !metrics_unix_socket.empty() ) {
+                // Use CivetWeb options to listen on a Unix socket
+                std::vector<std::string> civet_options;
+                civet_options.push_back("unix_port=" + metrics_unix_socket);
+                prometheus_exposer = std::make_unique<prometheus::Exposer>(civet_options, callbacks);
             }
+            else if ( !prometheus_url.empty() ) {
+                prometheus_exposer = std::make_unique<prometheus::Exposer>(prometheus_url, BifConst::Telemetry::civetweb_threads, callbacks);
+            }
+            // CivetWeb stores a copy of the callbacks, so we're safe to delete the pointer here
+            delete callbacks;
+        } catch ( const CivetException& exc ) {
+            reporter->FatalError("Failed to setup Prometheus endpoint: %s. Attempted to bind to %s.", exc.what(),
+                                 !metrics_unix_socket.empty() ? metrics_unix_socket.c_str() : prometheus_url.c_str());
         }
 
-        if ( ! getenv("ZEEKCTL_CHECK_CONFIG") ) {
-            try {
-                prometheus_exposer =
-                    std::make_unique<prometheus::Exposer>(prometheus_url, BifConst::Telemetry::civetweb_threads,
-                                                          callbacks);
-
-                // CivetWeb stores a copy of the callbacks, so we're safe to delete the pointer here
-                delete callbacks;
-            } catch ( const CivetException& exc ) {
-                reporter->FatalError("Failed to setup Prometheus endpoint: %s. Attempted to bind to %s.", exc.what(),
-                                     prometheus_url.c_str());
-            }
-
-            // This has to be inserted before the registry below. The exposer
-            // processes the collectors in order of insertion. We want to make
-            // sure that the callbacks get called and the values in the metrics
-            // are updated before prometheus-cpp scrapes them.
-            zeek_collectable = std::make_shared<ZeekCollectable>();
-            prometheus_exposer->RegisterCollectable(zeek_collectable);
-
-            prometheus_exposer->RegisterCollectable(prometheus_registry);
-        }
+        // This has to be inserted before the registry below. The exposer
+        // processes the collectors in order of insertion. We want to make
+        // sure that the callbacks get called and the values in the metrics
+        // are updated before prometheus-cpp scrapes them.
+        zeek_collectable = std::make_shared<ZeekCollectable>();
+        prometheus_exposer->RegisterCollectable(zeek_collectable);
+        prometheus_exposer->RegisterCollectable(prometheus_registry);
     }
 
 #ifdef HAVE_PROCESS_STAT_METRICS
@@ -118,22 +122,17 @@ void Manager::InitPostScript() {
             this->current_process_stats = detail::get_process_stats();
             this->process_stats_last_updated = now;
         }
-
         return &this->current_process_stats;
     };
     rss_gauge = GaugeInstance("process", "resident_memory", {}, "Resident memory size", "bytes",
                               []() { return static_cast<double>(get_stats()->rss); });
-
     vms_gauge = GaugeInstance("process", "virtual_memory", {}, "Virtual memory size", "bytes",
                               []() { return static_cast<double>(get_stats()->vms); });
-
     cpu_gauge = GaugeInstance("process", "cpu", {}, "Total user and system CPU time spent", "seconds",
                               []() { return get_stats()->cpu; });
-
     fds_gauge = GaugeInstance("process", "open_fds", {}, "Number of open file descriptors", "",
                               []() { return static_cast<double>(get_stats()->fds); });
 #endif
-
     iosource_mgr->RegisterFd(collector_flare.FD(), this);
 }
 
