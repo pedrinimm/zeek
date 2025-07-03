@@ -92,9 +92,9 @@ void Manager::InitPostScript() {
         try {
             if ( !metrics_unix_socket.empty() ) {
                 // Use CivetWeb options to listen on a Unix socket
-                std::map<std::string, std::string> civet_options;
-                civet_options["unix_port"] = metrics_unix_socket;
-                prometheus_exposer = std::make_unique<prometheus::Exposer>(civet_options, BifConst::Telemetry::civetweb_threads, callbacks);
+                std::vector<std::string> civet_options;
+                civet_options.push_back("unix_port=" + metrics_unix_socket);
+                prometheus_exposer = std::make_unique<prometheus::Exposer>(civet_options, callbacks);
             }
             else if ( !prometheus_url.empty() ) {
                 prometheus_exposer = std::make_unique<prometheus::Exposer>(prometheus_url, BifConst::Telemetry::civetweb_threads, callbacks);
